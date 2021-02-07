@@ -17,7 +17,7 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 
-private val BASE_URL = "http://localhost:9999"
+private const val BASE_URL = "http://localhost:9999"
 private val gson = Gson()
 private val client = OkHttpClient.Builder()
     .addInterceptor(HttpLoggingInterceptor().apply {
@@ -27,7 +27,6 @@ private val client = OkHttpClient.Builder()
     .build()
 
 fun main() {
-
     with(CoroutineScope(EmptyCoroutineContext)) {
         launch {
             try {
@@ -35,42 +34,21 @@ fun main() {
                 val posts = getPosts(client)
                     .map { post ->
                         async {
-                            PostWithComments(post, getComments(client, post.id))
-                        }
-                    }.awaitAll()
-                //         println(posts)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-        launch {
-            try {
-                println(Thread.currentThread().name)
-                val posts = getPosts(client)
-                    .map { post ->
-                        async {
-                            PostWithAuthors(post, getAuthor(client, post.author))
-                        }
-                    }.awaitAll()
-                //   println(posts)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-        launch {
-            try {
-                println(Thread.currentThread().name)
-                val posts = getPosts(client)
-                    .map { post ->
-                        async {
-                            val comments = getComments(client, post.id)
+                            getComments(client, post.id)
                                 .map { comment ->
-                                    CommentsWithAuthors(comment, getAuthor(client, comment.authorId))
+                                    CommentsWithAuthors(
+                                        post,
+                                        getAuthor(client, post.author),
+                                        comment,
+                                        getAuthor(client, comment.authorId)
+                                    )
                                 }
-                            println(comments)
                         }
                     }.awaitAll()
 
+                println(posts.filter {
+                    it.isNotEmpty()
+                })
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -99,7 +77,6 @@ suspend fun OkHttpClient.apiCall(url: String): Response {
     }
 }
 
-
 suspend fun <T> makeRequest(url: String, client: OkHttpClient, typeToken: TypeToken<T>): T =
     withContext(Dispatchers.IO) {
         client.apiCall(url)
@@ -113,7 +90,6 @@ suspend fun <T> makeRequest(url: String, client: OkHttpClient, typeToken: TypeTo
 
             }
     }
-
 
 suspend fun getPosts(client: OkHttpClient): List<Post> =
     makeRequest("$BASE_URL/api/posts", client, object : TypeToken<List<Post>>() {})
